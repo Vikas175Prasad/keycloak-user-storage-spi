@@ -66,6 +66,7 @@ public class UserAdapter extends AbstractUserAdapterFederatedStorage {
     @Override
     public void setEmail(String email) {
         entity.setEmail(email);
+        setSingleAttribute(EMAIL, email);
     }
 
     @Override
@@ -82,6 +83,8 @@ public class UserAdapter extends AbstractUserAdapterFederatedStorage {
     public void setSingleAttribute(String name, String value) {
         if (name.equals("phone")) {
             entity.setPhone(value);
+        }if (name.equals("email")) {
+            entity.setEmail(value);
         } else {
             super.setSingleAttribute(name, value);
         }
@@ -100,7 +103,9 @@ public class UserAdapter extends AbstractUserAdapterFederatedStorage {
     public void setAttribute(String name, List<String> values) {
         if (name.equals("phone")) {
             entity.setPhone(values.get(0));
-        } else {
+        } if (name.equals("email")) {
+            entity.setEmail(values.get(0));
+        }else {
             super.setAttribute(name, values);
         }
     }
@@ -120,6 +125,7 @@ public class UserAdapter extends AbstractUserAdapterFederatedStorage {
         MultivaluedHashMap<String, String> all = new MultivaluedHashMap<>();
         all.putAll(attrs);
         all.add("phone", entity.getPhone());
+        all.add("email", entity.getEmail());
         return all;
     }
 

@@ -38,6 +38,7 @@ import org.keycloak.storage.UserStorageProvider;
 import org.keycloak.storage.user.UserLookupProvider;
 import org.keycloak.storage.user.UserQueryProvider;
 import org.keycloak.storage.user.UserRegistrationProvider;
+import org.springframework.security.crypto.bcrypt.BCrypt;
 
 import java.util.HashSet;
 import java.util.List;
@@ -96,9 +97,12 @@ public class MyUserStorageProvider implements UserStorageProvider,
         logger.info("getUserById: " + id);
         String persistenceId = StorageId.externalId(id);
         UserEntity entity = em.find(UserEntity.class, persistenceId);
+        
         if (entity == null) {
             logger.info("could not find user by id: " + id);
             return null;
+        } else {
+        	logger.info("find user with email: " + entity.getEmail());
         }
         return new UserAdapter(session, realm, model, entity);
     }
@@ -128,6 +132,7 @@ public class MyUserStorageProvider implements UserStorageProvider,
 
     @Override
     public UserModel addUser(RealmModel realm, String username) {
+    	
         UserEntity entity = new UserEntity();
         entity.setId(UUID.randomUUID().toString());
         entity.setUsername(username);
@@ -163,8 +168,26 @@ public class MyUserStorageProvider implements UserStorageProvider,
         if (!supportsCredentialType(input.getType()) || !(input instanceof UserCredentialModel)) return false;
         UserCredentialModel cred = (UserCredentialModel)input;
         UserAdapter adapter = getUserAdapter(user);
-        adapter.setPassword(cred.getValue());
-
+       
+//    	
+//    	if(!(input instanceof UserCredentialModel)) {
+//    		return false;
+//    	}
+//    	
+//    	UserCredentialModel cred  = (UserCredentialModel) input;
+//    	if(!supportsCredentialType(cred.getType())) {
+//    		return false;
+//    	}
+//    	
+    	String rawPassword = cred.getValue();
+    	
+    	String hashed = BCrypt.hashpw(rawPassword, BCrypt.gensalt(12));
+//    	
+//    	UserEntity userEntity = em.find(UserEntity.class, user.getId());
+//    	userEntity.setPassword(hashed);
+//    	em.merge(userEntity);
+        
+        adapter.setPassword(hashed);
         return true;
     }
 
@@ -202,10 +225,31 @@ public class MyUserStorageProvider implements UserStorageProvider,
 
     @Override
     public boolean isValid(RealmModel realm, UserModel user, CredentialInput input) {
-        if (!supportsCredentialType(input.getType()) || !(input instanceof UserCredentialModel)) return false;
-        UserCredentialModel cred = (UserCredentialModel)input;
-        String password = getPassword(user);
-        return password != null && password.equals(cred.getValue());
+//        if (!supportsCredentialType(input.getType()) || !(input instanceof UserCredentialModel)) return false;
+//        UserCredentialModel cred = (UserCredentialModel)input;
+//        String password = getPassword(user);
+//        return password != null && password.equals(cred.getValue());
+    	
+
+    	if(!(input instanceof UserCredentialModel)) {
+    		return false;
+    	}
+    	
+    	UserCredentialModel cred  = (UserCredentialModel) input;
+    	if(!supportsCredentialType(cred.getType())) {
+    		return false;
+    	}
+    	String externalId = extractExternalId(user.getId());
+    	UserEntity userEntity;
+    	if(externalId != null) {
+    		userEntity = em.find(UserEntity.class, externalId);
+    	} else {
+    		userEntity = em.find(UserEntity.class, user.getId());
+    	}
+    	
+    	String rawPassword = cred.getChallengeResponse();
+
+    	return BCrypt.checkpw(rawPassword, userEntity.getPassword());
     }
 
     public String getPassword(UserModel user) {
@@ -248,5 +292,15 @@ public class MyUserStorageProvider implements UserStorageProvider,
     @Override
     public Stream<UserModel> searchForUserByUserAttributeStream(RealmModel realm, String attrName, String attrValue) {
         return Stream.empty();
+    }
+    
+    public String extractExternalId(String keycloakId) {
+    	logger.info("extractExternalId: " + keycloakId);
+    	int colon = keycloakId.lastIndexOf(":");
+    	if(colon == -1) {
+//    		throw new IllegalArgumentException("Invalid keycloak Id");
+    		return null;
+    	}
+    	return keycloakId.substring(colon+1);
     }
 }
